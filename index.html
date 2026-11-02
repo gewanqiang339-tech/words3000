@@ -131,7 +131,7 @@
     </div>
   </div>
   <div class="line"><span>发音人</span>
-    <select id="voiceSel" style="max-width:60%;padding:6px 8px;border:1px solid #e3e9f0;border-radius:9px;font-size:13px"></select>
+    <span id="voiceName" style="font-size:12.5px;color:#6b7a8c;text-align:right">检测中…</span>
   </div>
   <div class="line"><span>读完例句自动下一个</span>
     <div class="seg" id="auto"><button data-v="0">关</button><button data-v="1">开</button></div>
@@ -173,33 +173,35 @@ const topicsOf = () => DATA[state.lang].topics;
 /* ---------- 语音 ---------- */
 const synth = window.speechSynthesis;
 const voices = { en: null, fr: null, zh: null };
-function pickVoices(){
-  const vs = synth.getVoices() || [];
-  voices.en = vs.find(v => /^en(-|_)?/i.test(v.lang) && /google|samantha|zira|natural|premium/i.test(v.name))
-           || vs.find(v => /^en(-|_)?/i.test(v.lang)) || null;
-  voices.fr = vs.find(v => /^fr(-|_)?/i.test(v.lang) && /google|amelie|thomas|natural|premium/i.test(v.name))
-           || vs.find(v => /^fr(-|_)?/i.test(v.lang)) || null;
-  voices.zh = vs.find(v => /^zh/i.test(v.lang)) || null;
+const PREF = {
+  en: ['aria', 'jenny', 'guy', 'sonia', 'natasha', 'zira', 'david', 'mark', 'natural', 'google'],
+  fr: ['denise', 'henri', 'eloise', 'hortense', 'julie', 'paul', 'marie', 'amelie', 'thomas']
+};
+
+function rankVoices(list, prefs){
+  const score = v => {
+    const n = v.name.toLowerCase();
+    const i = prefs.findIndex(p => n.indexOf(p) >= 0);
+    return i < 0 ? 999 : i;
+  };
+  return list.slice().sort((a, b) => score(a) - score(b));
 }
 
-function voicePool(){
-  const all = synth.getVoices() || [];
-  const mine = all.filter(v => new RegExp('^' + state.lang, 'i').test(v.lang));
-  return mine.length ? mine : all;
+function pickVoices(){
+  const vs = synth.getVoices() || [];
+  const enList = vs.filter(v => /^en/i.test(v.lang));
+  const frList = vs.filter(v => /^fr/i.test(v.lang));
+  voices.en = rankVoices(enList, PREF.en)[0] || null;
+  voices.fr = rankVoices(frList, PREF.fr)[0] || null;
+  voices.zh = vs.find(v => /^zh/i.test(v.lang)) || null;
+  refreshVoices();
 }
 
 function refreshVoices(){
-  const sel = $('#voiceSel');
-  if (!sel) return;
-  const cur = store.get('voice_' + state.lang, '');
-  sel.innerHTML = '<option value="">自动（推荐）</option>';
-  voicePool().forEach(v => {
-    const o = document.createElement('option');
-    o.value = v.name;
-    o.textContent = v.name + ' (' + v.lang + ')';
-    if (v.name === cur) o.selected = true;
-    sel.appendChild(o);
-  });
+  const el = document.getElementById('voiceName');
+  if (!el) return;
+  const v = state.lang === 'fr' ? voices.fr : voices.en;
+  el.textContent = v ? (v.name + ' (' + v.lang + ')') : '未找到可用语音，请安装语音包';
 }
 if ('speechSynthesis' in window){ pickVoices(); synth.onvoiceschanged = function(){ pickVoices(); refreshVoices(); }; }
 let lastWasSentence = false;
@@ -418,8 +420,7 @@ document.querySelectorAll('#rate button').forEach(b => b.addEventListener('click
   state.rate = parseFloat(b.dataset.r); store.set('rate', String(state.rate)); markSeg('#rate', String(state.rate)); }));
 document.querySelectorAll('#auto button').forEach(b => b.addEventListener('click', () => {
   state.auto = b.dataset.v === '1'; store.set('auto', state.auto ? '1' : '0'); markSeg('#auto', b.dataset.v); }));
-const voiceSelEl = document.getElementById('voiceSel');
-if (voiceSelEl) voiceSelEl.addEventListener('change', e => { store.set('voice_' + state.lang, e.target.value); });
+
 $('#reset').addEventListener('click', () => {
   state.done.clear(); store.set('done_' + state.lang, '[]');
   document.querySelectorAll('.card').forEach(c => {
@@ -441,6 +442,8 @@ applyFilter();
 </script>
 </body>
 </html>
+
+
 
 
 
