@@ -210,18 +210,27 @@ function refreshVoices(){
 if ('speechSynthesis' in window){ pickVoices(); synth.onvoiceschanged = function(){ pickVoices(); refreshVoices(); }; }
 let lastWasSentence = false;
 let seqToken = 0;
+function resolveVoice(lang){
+  const l = String(lang || "en-US").slice(0, 2).toLowerCase();
+  const vs = synth.getVoices() || [];
+  if (l === "en") return voices.en || rankVoices(vs.filter(v => /^en/i.test(v.lang)), PREF.en)[0] || null;
+  if (l === "fr") return voices.fr || rankVoices(vs.filter(v => /^fr/i.test(v.lang)), PREF.fr)[0] || null;
+  if (l === "zh") return voices.zh || vs.find(v => /^zh/i.test(v.lang)) || null;
+  return null;
+}
+
 function makeUtterance(text, lang){
   const u = new SpeechSynthesisUtterance(text);
   u.lang = lang || "en-US";
   u.rate = state.rate;
-  if (u.lang.startsWith("en") && voices.en) u.voice = voices.en;
-  if (u.lang.startsWith("fr") && voices.fr) u.voice = voices.fr;
-  if (u.lang.startsWith("zh") && voices.zh) u.voice = voices.zh;
+  const v = resolveVoice(u.lang);
+  if (v) u.voice = v;
   return u;
 }
 
 function speak(text, lang){
   if (!("speechSynthesis" in window) || !text) return;
+  if (!voices.en || !voices.zh) pickVoices();
   const id = ++seqToken;
   try { synth.cancel(); } catch(e){}
   const words = String(text).trim().split(/\s+/);
