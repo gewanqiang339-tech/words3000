@@ -133,6 +133,9 @@
   <div class="line"><span>例句读法</span>
     <div class="seg" id="wbw"><button data-v="0">整句</button><button data-v="1">逐词</button></div>
   </div>
+  <div class="line"><span>词间停顿</span>
+    <div class="seg" id="gap"><button data-g="0.1">0.1 秒</button><button data-g="0.3">0.3 秒</button><button data-g="0.5">0.5 秒</button></div>
+  </div>
   <div class="line"><span>发音人</span>
     <span id="voiceName" style="font-size:12.5px;color:#6b7a8c;text-align:right">检测中…</span>
   </div>
@@ -165,6 +168,7 @@ let state = {
   filtered: [],
   rate: parseFloat(store.get('rate', '0.85')),
   wbw: store.get('wbw', '1') === '1',
+  gap: parseFloat(store.get('gap', '0.5')),
   auto: store.get('auto', '0') === '1',
   done: new Set(JSON.parse(store.get('done_' + store.get('lang', 'en'), '[]'))),
   open: new Set(JSON.parse(store.get('open_' + store.get('lang', 'en'), '[]')))
@@ -246,7 +250,7 @@ function speak(text, lang){
     if (id !== seqToken) return;
     if (i >= words.length){ onSpoken(); return; }
     const u = makeUtterance(words[i++], lang);
-    u.onend = function(){ if (id === seqToken) setTimeout(step, 130); };
+    u.onend = function(){ if (id === seqToken) setTimeout(step, Math.max(0, state.gap * 1000)); };
     try { synth.speak(u); } catch(e){}
   };
   setTimeout(step, 60);
@@ -448,6 +452,8 @@ function markSeg(sel, val){ document.querySelectorAll(sel + ' button').forEach(b
   b.classList.toggle('on', b.dataset.r === val || b.dataset.v === val); }); }
 document.querySelectorAll('#rate button').forEach(b => b.addEventListener('click', () => {
   state.rate = parseFloat(b.dataset.r); store.set('rate', String(state.rate)); markSeg('#rate', String(state.rate)); }));
+document.querySelectorAll('#gap button').forEach(b => b.addEventListener('click', () => {
+  state.gap = parseFloat(b.dataset.g); store.set('gap', String(state.gap)); markSeg('#gap', b.dataset.g); }));
 document.querySelectorAll('#wbw button').forEach(b => b.addEventListener('click', () => {
   state.wbw = b.dataset.v === '1'; store.set('wbw', state.wbw ? '1' : '0'); markSeg('#wbw', b.dataset.v); }));
 document.querySelectorAll('#auto button').forEach(b => b.addEventListener('click', () => {
@@ -469,6 +475,7 @@ document.title = LANGS[state.lang].title;
 markSeg('#rate', String(state.rate));
 markSeg('#auto', state.auto ? '1' : '0');
 markSeg('#wbw', state.wbw ? '1' : '0');
+markSeg('#gap', String(state.gap));
 rebuildTopics();
 refreshVoices();
 applyFilter();
