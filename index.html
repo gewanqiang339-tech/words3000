@@ -137,8 +137,8 @@
   <div class="line"><span>词间停顿</span>
     <div class="seg" id="gap"><button data-g="0.1">0.1 秒</button><button data-g="0.3">0.3 秒</button><button data-g="0.5">0.5 秒</button></div>
   </div>
-  <div class="line" style="display:block"><span>发音人</span>
-    <div id="voiceList" style="display:flex;flex-direction:column;gap:6px;margin-top:8px"></div>
+  <div class="line"><span>发音人</span>
+    <span id="voiceName" style="font-size:12.5px;color:#6b7a8c;text-align:right">检测中…</span>
   </div>
   <div class="line"><span>读完例句自动下一个</span>
     <div class="seg" id="auto"><button data-v="0">关</button><button data-v="1">开</button></div>
@@ -206,31 +206,11 @@ function pickVoices(){
   refreshVoices();
 }
 
-let voiceSig = "";
 function refreshVoices(){
-  const box = document.getElementById("voiceList");
-  if (!box) return;
-  const all = (synth.getVoices() || []).filter(v => new RegExp("^" + state.lang, "i").test(v.lang));
+  const el = document.getElementById("voiceName");
+  if (!el) return;
   const auto = state.lang === "fr" ? voices.fr : voices.en;
-  const cur = store.get("voice_" + state.lang, "");
-  const sig = state.lang + "|" + (auto ? auto.name : "") + "|" + cur + "|" + all.map(v => v.name).join(",");
-  if (sig === voiceSig) return;
-  voiceSig = sig;
-  box.innerHTML = "";
-  const rows = [{ name: "", label: auto ? ("自动（" + auto.name.replace(/^Microsoft\s*/, "") + "）") : "自动（未找到该语言语音）" }];
-  all.forEach(v => rows.push({ name: v.name, label: v.name + " (" + v.lang + ")" }));
-  rows.forEach(r => {
-    const b = document.createElement("button");
-    b.type = "button";
-    b.textContent = r.label;
-    b.dataset.name = r.name;
-    const on = (r.name === cur) || (r.name === "" && !cur);
-    b.style.cssText = "text-align:left;padding:10px 12px;border-radius:10px;font-size:13px;line-height:1.3;" +
-      (on ? "border:1px solid #1f6feb;background:#eaf2ff;color:#12447f;font-weight:600;"
-          : "border:1px solid #e3e9f0;background:#fff;color:#33475b;");
-    b.addEventListener("click", () => { store.set("voice_" + state.lang, r.name); voiceSig = ""; refreshVoices(); });
-    box.appendChild(b);
-  });
+  el.textContent = auto ? auto.name : "未找到该语言语音";
 }
 if ('speechSynthesis' in window){ pickVoices(); synth.onvoiceschanged = function(){ pickVoices(); refreshVoices(); }; }
 let lastWasSentence = false;
@@ -248,13 +228,7 @@ function makeUtterance(text, lang){
   const u = new SpeechSynthesisUtterance(text);
   u.lang = lang || "en-US";
   u.rate = state.rate;
-  const chosen = store.get("voice_" + state.lang, "");
-  let v = null;
-  if (chosen) {
-    const vs = synth.getVoices() || [];
-    v = vs.find(x => x.name === chosen) || null;
-  }
-  if (!v) v = resolveVoice(u.lang);
+  const v = resolveVoice(u.lang);
   if (v) u.voice = v;
   return u;
 }
