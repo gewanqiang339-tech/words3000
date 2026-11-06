@@ -123,6 +123,11 @@
 
 <div id="list"></div>
 
+<div class="mask" id="vmask" style="display:none;z-index:60"></div>
+<div id="vpanel" style="display:none;position:fixed;left:0;right:0;bottom:0;z-index:70;background:#fff;border-radius:18px 18px 0 0;padding:16px 16px calc(18px + env(safe-area-inset-bottom));box-shadow:0 -10px 30px rgba(10,30,50,.18);max-height:72vh;overflow-y:auto">
+  <h2 style="font-size:15px;margin:0 0 12px">选择发音人</h2>
+  <div id="voiceList" style="display:flex;flex-direction:column;gap:8px"></div>
+</div>
 <div class="mask" id="mask"></div>
 <div class="sheet" id="sheet">
   <h2>朗读设置</h2>
@@ -138,10 +143,10 @@
     <div class="seg" id="gap"><button data-g="0.1">0.1 秒</button><button data-g="0.3">0.3 秒</button><button data-g="0.5">0.5 秒</button></div>
   </div>
   <div class="line"><span>发音人</span>
-    <span style="display:flex;align-items:center;gap:8px;max-width:66%;justify-content:flex-end">
-      <span id="voiceName" style="font-size:12px;color:#6b7a8c;text-align:right;line-height:1.3">检测中…</span>
-      <button id="voiceNext" type="button" style="border:1px solid #e3e9f0;background:#fff;border-radius:9px;padding:7px 11px;font-size:12.5px;touch-action:manipulation">换</button>
-    </span>
+    <button id="voicePick" type="button" style="max-width:68%;display:flex;align-items:center;gap:6px;border:1px solid #e3e9f0;background:#fff;border-radius:10px;padding:8px 10px;font-size:12.5px;color:#33475b;touch-action:manipulation">
+      <span id="voiceName" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">检测中…</span>
+      <span style="color:#8ba0b6">▾</span>
+    </button>
   </div>
   <div class="line"><span>读完例句自动下一个</span>
     <div class="seg" id="auto"><button data-v="0">关</button><button data-v="1">开</button></div>
@@ -213,24 +218,54 @@ function langVoices(){
   return (synth.getVoices() || []).filter(v => new RegExp("^" + state.lang, "i").test(v.lang));
 }
 
+function currentVoice(){
+  const cur = store.get("voice_" + state.lang, "");
+  const lv = langVoices();
+  return (cur ? lv.find(x => x.name === cur) : null) || (state.lang === "fr" ? voices.fr : voices.en) || null;
+}
+
 function refreshVoices(){
   const el = document.getElementById("voiceName");
   if (!el) return;
-  const cur = store.get("voice_" + state.lang, "");
-  const lv = langVoices();
-  const pick = cur ? lv.find(x => x.name === cur) : (state.lang === "fr" ? voices.fr : voices.en);
-  el.textContent = pick ? pick.name : "未找到该语言语音";
+  const v = currentVoice();
+  el.textContent = v ? v.name : "未找到该语言语音";
 }
 
-function cycleVoice(){
+function openVoicePanel(){
+  const box = document.getElementById("voiceList");
+  const panel = document.getElementById("vpanel");
+  const mask = document.getElementById("vmask");
+  if (!box || !panel || !mask) return;
   const lv = langVoices();
-  if (!lv.length){ speak(state.lang === "fr" ? "bonjour" : "hello", state.lang === "fr" ? "fr-FR" : "en-US"); return; }
-  const cur = store.get("voice_" + state.lang, "");
-  let i = lv.findIndex(x => x.name === cur);
-  i = (i + 1) % lv.length;
-  store.set("voice_" + state.lang, lv[i].name);
-  refreshVoices();
-  speak(state.lang === "fr" ? "bonjour" : "hello", state.lang === "fr" ? "fr-FR" : "en-US");
+  const cur = currentVoice();
+  box.innerHTML = "";
+  const rows = [{ name: "", label: "自动（推荐）", sub: (state.lang === "fr" ? voices.fr : voices.en) ? "" : "未找到该语言语音" }];
+  lv.forEach(v => rows.push({ name: v.name, label: v.name, sub: v.lang }));
+  rows.forEach(r => {
+    const on = r.name ? (cur && cur.name === r.name) : (!store.get("voice_" + state.lang, ""));
+    const b = document.createElement("button");
+    b.type = "button";
+    b.style.cssText = "text-align:left;padding:12px 14px;border-radius:11px;font-size:13.5px;line-height:1.35;" +
+      (on ? "border:1px solid #1f6feb;background:#eaf2ff;color:#12447f;font-weight:600;"
+          : "border:1px solid #e3e9f0;background:#fff;color:#33475b;");
+    b.innerHTML = r.label + (r.sub ? "<span style='display:block;font-size:11.5px;color:#8ba0b6;font-weight:400'>" + r.sub + "</span>" : "");
+    b.addEventListener("click", () => {
+      store.set("voice_" + state.lang, r.name);
+      refreshVoices();
+      closeVoicePanel();
+      speak(state.lang === "fr" ? "bonjour" : "hello", state.lang === "fr" ? "fr-FR" : "en-US");
+    });
+    box.appendChild(b);
+  });
+  panel.style.display = "block";
+  mask.style.display = "block";
+}
+
+function closeVoicePanel(){
+  const panel = document.getElementById("vpanel");
+  const mask = document.getElementById("vmask");
+  if (panel) panel.style.display = "none";
+  if (mask) mask.style.display = "none";
 }
 if ('speechSynthesis' in window){ pickVoices(); synth.onvoiceschanged = function(){ pickVoices(); refreshVoices(); }; }
 let lastWasSentence = false;
@@ -476,8 +511,10 @@ function markSeg(sel, val){ document.querySelectorAll(sel + ' button').forEach(b
   b.classList.toggle('on', b.dataset.r === val || b.dataset.v === val || b.dataset.g === val); }); }
 document.querySelectorAll('#rate button').forEach(b => b.addEventListener('click', () => {
   state.rate = parseFloat(b.dataset.r); store.set('rate', String(state.rate)); markSeg('#rate', String(state.rate)); }));
-const voiceNextEl = document.getElementById('voiceNext');
-if (voiceNextEl) voiceNextEl.addEventListener('click', cycleVoice);
+const voicePickEl = document.getElementById('voicePick');
+if (voicePickEl) voicePickEl.addEventListener('click', openVoicePanel);
+const vmaskEl = document.getElementById('vmask');
+if (vmaskEl) vmaskEl.addEventListener('click', closeVoicePanel);
 document.querySelectorAll('#gap button').forEach(b => b.addEventListener('click', () => {
   state.gap = parseFloat(b.dataset.g); store.set('gap', String(state.gap)); markSeg('#gap', b.dataset.g); }));
 document.querySelectorAll('#wbw button').forEach(b => b.addEventListener('click', () => {
